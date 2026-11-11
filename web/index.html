@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Go Key-Value Server · Live demo</title>
+    <meta
+      name="description"
+      content="A concurrent key-value server written in Go. This demo runs the real server code in your browser with WebAssembly."
+    />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%2300ADD8'/><text x='50' y='66' font-size='46' font-family='monospace' text-anchor='middle' fill='white'>kv</text></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="glow glow-a"></div>
+    <div class="glow glow-b"></div>
+
+    <header class="hero">
+      <div class="hero-badge"><span class="dot"></span> Real Go code, compiled to WebAssembly</div>
+      <h1>Go Key-Value Server</h1>
+      <p class="hero-text">
+        A concurrent key-value database server. Clients send <code>put</code> and <code>get</code>
+        commands, and the server sends every <code>get</code> result to <em>all</em> connected clients.
+        Connect a few clients below and watch the messages flow.
+      </p>
+      <div class="hero-actions">
+        <a class="button button-ghost" href="https://github.com/rahelmartim/go-key-value-server" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          View on GitHub
+        </a>
+        <a class="button button-ghost" href="#protocol">How it works</a>
+      </div>
+    </header>
+
+    <main class="stage" id="stage">
+      <section class="clients-column">
+        <div class="column-header">
+          <h2>Clients</h2>
+          <div class="column-actions">
+            <label class="toggle" title="Connected clients send random commands">
+              <input type="checkbox" id="auto-traffic" />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              Auto traffic
+            </label>
+            <button class="button button-primary" id="add-client" disabled>+ Add client</button>
+          </div>
+        </div>
+        <div class="clients" id="clients">
+          <p class="empty" id="clients-empty">Loading the Go runtime…</p>
+        </div>
+      </section>
+
+      <section class="server-column">
+        <div class="card server-card" id="server-card">
+          <div class="server-head">
+            <div class="server-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 9h16a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2Zm2-6.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm0 9a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/></svg>
+            </div>
+            <div>
+              <h2>kvserver</h2>
+              <p class="muted" id="server-status">Starting…</p>
+            </div>
+          </div>
+
+          <div class="stats">
+            <div class="stat"><span class="stat-value" id="stat-clients">0</span><span class="stat-label">clients</span></div>
+            <div class="stat"><span class="stat-value" id="stat-keys">0</span><span class="stat-label">keys</span></div>
+            <div class="stat"><span class="stat-value" id="stat-sent">0</span><span class="stat-label">messages sent</span></div>
+            <div class="stat"><span class="stat-value" id="stat-dropped">0</span><span class="stat-label">dropped</span></div>
+          </div>
+
+          <h3>Store</h3>
+          <div class="table-wrap">
+            <table class="store">
+              <thead><tr><th>Key</th><th>Value</th></tr></thead>
+              <tbody id="store-body"></tbody>
+            </table>
+            <p class="empty small" id="store-empty">No keys yet. Send a <code>put</code> from a client.</p>
+          </div>
+
+          <h3>Activity</h3>
+          <ol class="activity" id="activity"></ol>
+        </div>
+      </section>
+    </main>
+
+    <section class="explain" id="protocol">
+      <div class="explain-grid">
+        <article class="card">
+          <h3>The protocol</h3>
+          <p>Each command is one line of text over TCP.</p>
+          <pre><code><span class="c-cmd">put</span>,<span class="c-key">color</span>,<span class="c-val">blue</span>   <span class="c-com"># store a value</span>
+<span class="c-cmd">get</span>,<span class="c-key">color</span>        <span class="c-com"># ask for a value</span>
+<span class="c-key">color</span>,<span class="c-val">blue</span>       <span class="c-com"># every client receives this</span></code></pre>
+        </article>
+        <article class="card">
+          <h3>Concurrency</h3>
+          <p>
+            One goroutine owns the store and the client list. The other goroutines talk to it through channels,
+            so the server needs no locks for its state. Each client has a queue of 500 messages. When a slow
+            client's queue is full, the server drops new messages for that client, so the other clients do not wait.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Run it on your computer</h3>
+          <pre><code><span class="c-com"># terminal 1</span>
+go run ./cmd/kvserver -v
+<span class="c-com"># terminal 2, 3, …</span>
+go run ./cmd/kvclient</code></pre>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      Built with Go and WebAssembly by
+      <a href="https://github.com/rahelmartim" target="_blank" rel="noopener noreferrer">rahelmartim</a>
+    </footer>
+
+    <template id="client-template">
+      <article class="card client">
+        <div class="client-head">
+          <span class="avatar"></span>
+          <div class="client-title">
+            <h3 class="client-name"></h3>
+            <span class="client-status muted">connected</span>
+          </div>
+          <button class="icon-button disconnect" title="Disconnect" aria-label="Disconnect">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6 6.4 5Z"/></svg>
+          </button>
+        </div>
+        <form class="command">
+          <div class="segmented" role="radiogroup" aria-label="Command">
+            <label><input type="radio" value="put" checked /> put</label>
+            <label><input type="radio" value="get" /> get</label>
+          </div>
+          <input class="field key" placeholder="key" maxlength="40" required autocomplete="off" />
+          <input class="field value" placeholder="value" maxlength="80" autocomplete="off" />
+          <button class="button button-primary send" type="submit">Send</button>
+        </form>
+        <div class="inbox-head muted">Received</div>
+        <ol class="inbox"></ol>
+      </article>
+    </template>
+
+    <script src="wasm_exec.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
