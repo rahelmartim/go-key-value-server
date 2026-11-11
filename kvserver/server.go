@@ -195,6 +195,7 @@ func (s *Server) isClosed() bool {
 
 // query runs fn on the goroutine that owns the state, and waits for it.
 func (s *Server) query(fn func(*state)) {
+	s.run()
 	finished := make(chan struct{})
 	select {
 	case s.queries <- func(st *state) { fn(st); close(finished) }:

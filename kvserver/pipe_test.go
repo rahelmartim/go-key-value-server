@@ -107,3 +107,19 @@ func TestCloseDisconnectsClients(t *testing.T) {
 		t.Errorf("Start after Close: %v, want ErrClosed", err)
 	}
 }
+
+func TestQueriesWorkBeforeTheFirstClient(t *testing.T) {
+	s := New()
+	defer s.Close()
+	done := make(chan struct{})
+	go func() {
+		s.Snapshot()
+		s.Count()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Snapshot and Count blocked on a server without clients")
+	}
+}

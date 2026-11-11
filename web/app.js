@@ -263,36 +263,36 @@ autoTraffic.addEventListener("change", () => {
 
 /* Start */
 
+function showStartError(error) {
+  console.error(error);
+  $("#server-status").textContent = "Could not start the server";
+  $("#clients-empty").textContent = "Your browser could not start the demo. Open the console for details.";
+}
+
+async function onReady() {
+  // Run after the current call returns, so that a new client already has a name.
+  window.kv.onEvent = (event) => queueMicrotask(() => handleEvent(event));
+  for (const [key, value] of Object.entries(await window.kv.snapshot())) store.set(key, value);
+  $("#server-status").textContent = "Running in your browser";
+  $("#clients-empty").textContent = "No clients. Add one to start.";
+  addButton.addEventListener("click", addClient);
+
+  // Start with a small scene: two clients and one stored value.
+  const first = addClient();
+  addClient();
+  renderStore();
+  setTimeout(() => send(first, "put", "lang", "Go"), 600);
+  setTimeout(() => send(first, "get", "lang", ""), 1500);
+}
+
 async function start() {
   const go = new Go();
   const result = await WebAssembly.instantiateStreaming(fetch("kv.wasm"), go.importObject);
-  window.addEventListener(
-    "kv-ready",
-    async () => {
-      // Run after the current call returns, so that a new client already has a name.
-      window.kv.onEvent = (event) => queueMicrotask(() => handleEvent(event));
-      for (const [key, value] of Object.entries(await window.kv.snapshot())) store.set(key, value);
-      $("#server-status").textContent = "Running in your browser";
-      $("#clients-empty").textContent = "No clients. Add one to start.";
-      addButton.addEventListener("click", addClient);
-
-      // Start with a small scene: two clients and one stored value.
-      const first = addClient();
-      addClient();
-      renderStore();
-      setTimeout(() => send(first, "put", "lang", "Go"), 600);
-      setTimeout(() => send(first, "get", "lang", ""), 1500);
-    },
-    { once: true },
-  );
+  window.addEventListener("kv-ready", () => onReady().catch(showStartError), { once: true });
   go.run(result.instance);
 }
 
-start().catch((error) => {
-  console.error(error);
-  $("#server-status").textContent = "Could not start the server";
-  $("#clients-empty").textContent = "Your browser could not load WebAssembly.";
-});
+start().catch(showStartError);
 
 renderStats();
 renderStore();
